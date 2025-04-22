@@ -16,6 +16,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto"
+version = "0.1.0"
+
+[[package]]
 name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -26,6 +30,7 @@ name = "jose"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "crypto",
  "serde",
  "serde_json",
  "traits",

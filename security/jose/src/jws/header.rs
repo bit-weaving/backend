@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename = "alg")]
-struct Algorithm(String);
+struct Algorithm(JwsAlgorithm);
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename = "jwu")]

@@ -11,6 +11,7 @@ pub enum JwsAlgorithm {
     PS256,
     PS384,
     PS512,
+    NONE,
 }
 impl JwsAlgorithm {
     pub fn from_str(alg: &str) -> Option<Self> {
@@ -27,7 +28,26 @@ impl JwsAlgorithm {
             "PS256" => Some(JwsAlgorithm::PS256),
             "PS384" => Some(JwsAlgorithm::PS384),
             "PS512" => Some(JwsAlgorithm::PS512),
+            "NONE" => Some(JwsAlgorithm::NONE),
             _ => None,
+        }
+    }
+
+    pub fn to_str(&self) -> &str {
+        match self {
+            JwsAlgorithm::HS256 => "HS256",
+            JwsAlgorithm::HS384 => "HS384",
+            JwsAlgorithm::HS512 => "HS512",
+            JwsAlgorithm::RS256 => "RS256",
+            JwsAlgorithm::RS384 => "RS384",
+            JwsAlgorithm::RS512 => "RS512",
+            JwsAlgorithm::ES256 => "ES256",
+            JwsAlgorithm::ES384 => "ES384",
+            JwsAlgorithm::ES512 => "ES512",
+            JwsAlgorithm::PS256 => "PS256",
+            JwsAlgorithm::PS384 => "PS384",
+            JwsAlgorithm::PS512 => "PS512",
+            JwsAlgorithm::NONE => "NONE",
         }
     }
 }
