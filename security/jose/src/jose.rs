@@ -1,4 +1,4 @@
-use crate::{jws::Header, signing_key::SigningKey};
+use crate::jws::Header;
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 
 

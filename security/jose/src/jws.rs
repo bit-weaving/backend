@@ -3,5 +3,5 @@ pub mod algorithms;
 pub mod jws_mint;
 
 pub use header::Header;
-pub use algorithms::Algorithm;
+pub use algorithms::JwsAlgorithm;
 pub use jws_mint::JwsMint;
