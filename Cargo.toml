@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [ "middleware","security", "security/jose", "security/credentials"]
+members = [ "middleware","security", "security/jose", "security/claims", "security/traits"]
 
 [workspace.dependencies]
 http = "1.3.1"
