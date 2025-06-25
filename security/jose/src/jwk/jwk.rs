@@ -1,3 +1,4 @@
+// Modified by Claude AI Assistant - Refactored to implement builder pattern with immutable Jwk struct
 use crate::jws::JwsAlgorithm;
 use serde::{Deserialize, Serialize};
 
@@ -59,70 +60,91 @@ pub enum KeyOperation {
 ///
 /// A JWK is a JSON object that represents a cryptographic key.
 /// The members of the object represent properties of the key, including its value.
+/// 
+/// This struct is immutable after creation. Use `JwkBuilder` to construct instances.
+/// 
+/// Author: Claude AI Assistant - Implemented builder pattern for immutability
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Jwk {
     /// Key Type (kty) parameter - REQUIRED
     /// Identifies the cryptographic algorithm family used with the key
     /// such as "RSA" or "EC"
-    pub kty: KeyType,
+    kty: KeyType,
 
     /// Public Key Use (use) parameter - OPTIONAL
     /// Identifies the intended use of the public key
     /// Values: "sig" (signature) or "enc" (encryption)
     #[serde(rename = "use", skip_serializing_if = "Option::is_none")]
-    pub public_key_use: Option<PublicKeyUse>,
+    public_key_use: Option<PublicKeyUse>,
 
     /// Key Operations (key_ops) parameter - OPTIONAL
     /// Identifies the operation(s) for which the key is intended to be used
     /// Array of key operation values
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub key_ops: Option<Vec<KeyOperation>>,
+    key_ops: Option<Vec<KeyOperation>>,
 
     /// Algorithm (alg) parameter - OPTIONAL
     /// Identifies the algorithm intended for use with the key
     /// Case-sensitive ASCII string
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub alg: Option<JwsAlgorithm>,
+    alg: Option<JwsAlgorithm>,
 
     /// Key ID (kid) parameter - OPTIONAL
     /// Used to match a specific key, for instance, to choose among
     /// a set of keys within a JWK Set during key rollover
     /// Case-sensitive string with unspecified structure
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub kid: Option<String>,
+    kid: Option<String>,
 
     /// X.509 URL (x5u) parameter - OPTIONAL
     /// URI that refers to a resource for an X.509 public key certificate
     /// or certificate chain. Must use TLS and validate server identity.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub x5u: Option<String>,
+    x5u: Option<String>,
 
     /// X.509 Certificate Chain (x5c) parameter - OPTIONAL
     /// Contains a chain of one or more PKIX certificates
     /// Array of certificate value strings (base64-encoded DER PKIX certificate values)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub x5c: Option<Vec<String>>,
+    x5c: Option<Vec<String>>,
 
     /// X.509 Certificate SHA-1 Thumbprint (x5t) parameter - OPTIONAL
     /// Base64url-encoded SHA-1 thumbprint of the DER encoding of an X.509 certificate
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub x5t: Option<String>,
+    x5t: Option<String>,
 
     /// X.509 Certificate SHA-256 Thumbprint (x5t#S256) parameter - OPTIONAL
     /// Base64url-encoded SHA-256 thumbprint of the DER encoding of an X.509 certificate
     #[serde(rename = "x5t#S256", skip_serializing_if = "Option::is_none")]
-    pub x5t_s256: Option<String>,
+    x5t_s256: Option<String>,
 
     /// Additional key-specific parameters
     /// RSA keys will have n, e, d, p, q, dp, dq, qi parameters
     /// EC keys will have crv, x, y, d parameters
     /// oct keys will have k parameter
     #[serde(flatten)]
-    pub key_params: serde_json::Map<String, serde_json::Value>,
+    key_params: serde_json::Map<String, serde_json::Value>,
 }
 
-impl Jwk {
-    /// Creates a new JWK with the specified key type
+/// Builder for creating immutable JWK instances
+/// 
+/// Author: Claude AI Assistant - Created builder pattern implementation
+#[derive(Debug, Clone)]
+pub struct JwkBuilder {
+    kty: KeyType,
+    public_key_use: Option<PublicKeyUse>,
+    key_ops: Option<Vec<KeyOperation>>,
+    alg: Option<JwsAlgorithm>,
+    kid: Option<String>,
+    x5u: Option<String>,
+    x5c: Option<Vec<String>>,
+    x5t: Option<String>,
+    x5t_s256: Option<String>,
+    key_params: serde_json::Map<String, serde_json::Value>,
+}
+
+impl JwkBuilder {
+    /// Creates a new JWK builder with the specified key type
     pub fn new(kty: KeyType) -> Self {
         Self {
             kty,
@@ -196,9 +218,108 @@ impl Jwk {
         self
     }
 
+    /// Validates that use and key_ops parameters are consistent if both are present
+    /// Returns true if consistent or if only one is present
+    fn validate_key_usage_consistency(&self) -> bool {
+        match (&self.public_key_use, &self.key_ops) {
+            (Some(PublicKeyUse::Signature), Some(ops)) => ops
+                .iter()
+                .all(|op| matches!(op, KeyOperation::Sign | KeyOperation::Verify)),
+            (Some(PublicKeyUse::Encryption), Some(ops)) => ops.iter().all(|op| {
+                matches!(
+                    op,
+                    KeyOperation::Encrypt
+                        | KeyOperation::Decrypt
+                        | KeyOperation::WrapKey
+                        | KeyOperation::UnwrapKey
+                        | KeyOperation::DeriveKey
+                        | KeyOperation::DeriveBits
+                )
+            }),
+            _ => true, // If only one is present or neither is present, they're consistent
+        }
+    }
+
+    /// Builds the JWK instance after validating the configuration
+    pub fn build(self) -> Result<Jwk, String> {
+        if !self.validate_key_usage_consistency() {
+            return Err("Inconsistent key usage: 'use' and 'key_ops' parameters conflict".to_string());
+        }
+
+        Ok(Jwk {
+            kty: self.kty,
+            public_key_use: self.public_key_use,
+            key_ops: self.key_ops,
+            alg: self.alg,
+            kid: self.kid,
+            x5u: self.x5u,
+            x5c: self.x5c,
+            x5t: self.x5t,
+            x5t_s256: self.x5t_s256,
+            key_params: self.key_params,
+        })
+    }
+}
+
+impl Jwk {
+    /// Creates a new JWK builder with the specified key type
+    pub fn builder(kty: KeyType) -> JwkBuilder {
+        JwkBuilder::new(kty)
+    }
+
+    /// Gets the key type
+    pub fn kty(&self) -> &KeyType {
+        &self.kty
+    }
+
+    /// Gets the public key use parameter
+    pub fn public_key_use(&self) -> Option<&PublicKeyUse> {
+        self.public_key_use.as_ref()
+    }
+
+    /// Gets the key operations parameter
+    pub fn key_ops(&self) -> Option<&Vec<KeyOperation>> {
+        self.key_ops.as_ref()
+    }
+
+    /// Gets the algorithm parameter
+    pub fn alg(&self) -> Option<&JwsAlgorithm> {
+        self.alg.as_ref()
+    }
+
+    /// Gets the key ID parameter
+    pub fn kid(&self) -> Option<&String> {
+        self.kid.as_ref()
+    }
+
+    /// Gets the X.509 URL parameter
+    pub fn x5u(&self) -> Option<&String> {
+        self.x5u.as_ref()
+    }
+
+    /// Gets the X.509 certificate chain parameter
+    pub fn x5c(&self) -> Option<&Vec<String>> {
+        self.x5c.as_ref()
+    }
+
+    /// Gets the X.509 SHA-1 thumbprint parameter
+    pub fn x5t(&self) -> Option<&String> {
+        self.x5t.as_ref()
+    }
+
+    /// Gets the X.509 SHA-256 thumbprint parameter
+    pub fn x5t_s256(&self) -> Option<&String> {
+        self.x5t_s256.as_ref()
+    }
+
     /// Gets a key-specific parameter
     pub fn get_key_param(&self, key: &str) -> Option<&serde_json::Value> {
         self.key_params.get(key)
+    }
+
+    /// Gets all key parameters
+    pub fn key_params(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.key_params
     }
 
     /// Checks if the JWK has all required parameters for its key type
@@ -320,27 +441,7 @@ impl Jwk {
         Ok(format!("jwk-thumbprint-{}", canonical_json.len()))
     }
 
-    /// Validates that use and key_ops parameters are consistent if both are present
-    /// Returns true if consistent or if only one is present
-    pub fn validate_key_usage_consistency(&self) -> bool {
-        match (&self.public_key_use, &self.key_ops) {
-            (Some(PublicKeyUse::Signature), Some(ops)) => ops
-                .iter()
-                .all(|op| matches!(op, KeyOperation::Sign | KeyOperation::Verify)),
-            (Some(PublicKeyUse::Encryption), Some(ops)) => ops.iter().all(|op| {
-                matches!(
-                    op,
-                    KeyOperation::Encrypt
-                        | KeyOperation::Decrypt
-                        | KeyOperation::WrapKey
-                        | KeyOperation::UnwrapKey
-                        | KeyOperation::DeriveKey
-                        | KeyOperation::DeriveBits
-                )
-            }),
-            _ => true, // If only one is present or neither is present, they're consistent
-        }
-    }
+
 }
 
 /// JWK Set structure as defined in RFC 7517 Section 5
@@ -384,14 +485,14 @@ impl JwkSet {
     pub fn find_key_by_id(&self, kid: &str) -> Option<&Jwk> {
         self.keys
             .iter()
-            .find(|key| key.kid.as_ref().map_or(false, |k| k == kid))
+            .find(|key| key.kid().map_or(false, |k| k == kid))
     }
 
     /// Finds keys by algorithm
     pub fn find_keys_by_algorithm(&self, alg: &JwsAlgorithm) -> Vec<&Jwk> {
         self.keys
             .iter()
-            .filter(|key| key.alg.as_ref().map_or(false, |a| a == alg))
+            .filter(|key| key.alg().map_or(false, |a| a == alg))
             .collect()
     }
 
@@ -400,8 +501,7 @@ impl JwkSet {
         self.keys
             .iter()
             .filter(|key| {
-                key.public_key_use
-                    .as_ref()
+                key.public_key_use()
                     .map_or(false, |u| u == public_key_use)
             })
             .collect()
@@ -420,41 +520,49 @@ mod tests {
 
     #[test]
     fn test_jwk_creation() {
-        let jwk = Jwk::new(KeyType::Rsa)
+        let jwk = Jwk::builder(KeyType::Rsa)
             .with_key_id("test-key-1".to_string())
             .with_algorithm(JwsAlgorithm::RS256)
-            .with_public_key_use(PublicKeyUse::Signature);
+            .with_public_key_use(PublicKeyUse::Signature)
+            .build()
+            .unwrap();
 
-        assert_eq!(jwk.kty, KeyType::Rsa);
-        assert_eq!(jwk.kid, Some("test-key-1".to_string()));
-        assert_eq!(jwk.alg, Some(JwsAlgorithm::RS256));
-        assert_eq!(jwk.public_key_use, Some(PublicKeyUse::Signature));
+        assert_eq!(*jwk.kty(), KeyType::Rsa);
+        assert_eq!(jwk.kid(), Some(&"test-key-1".to_string()));
+        assert_eq!(jwk.alg(), Some(&JwsAlgorithm::RS256));
+        assert_eq!(jwk.public_key_use(), Some(&PublicKeyUse::Signature));
     }
 
     #[test]
     fn test_jwk_key_usage_consistency() {
-        let jwk_consistent = Jwk::new(KeyType::Rsa)
+        let jwk_consistent = Jwk::builder(KeyType::Rsa)
             .with_public_key_use(PublicKeyUse::Signature)
-            .with_key_operations(vec![KeyOperation::Sign, KeyOperation::Verify]);
+            .with_key_operations(vec![KeyOperation::Sign, KeyOperation::Verify])
+            .build();
 
-        assert!(jwk_consistent.validate_key_usage_consistency());
+        assert!(jwk_consistent.is_ok());
 
-        let jwk_inconsistent = Jwk::new(KeyType::Rsa)
+        let jwk_inconsistent = Jwk::builder(KeyType::Rsa)
             .with_public_key_use(PublicKeyUse::Signature)
-            .with_key_operations(vec![KeyOperation::Encrypt]);
+            .with_key_operations(vec![KeyOperation::Encrypt])
+            .build();
 
-        assert!(!jwk_inconsistent.validate_key_usage_consistency());
+        assert!(jwk_inconsistent.is_err());
     }
 
     #[test]
     fn test_jwk_set_operations() {
-        let jwk1 = Jwk::new(KeyType::Rsa)
+        let jwk1 = Jwk::builder(KeyType::Rsa)
             .with_key_id("key1".to_string())
-            .with_algorithm(JwsAlgorithm::RS256);
+            .with_algorithm(JwsAlgorithm::RS256)
+            .build()
+            .unwrap();
 
-        let jwk2 = Jwk::new(KeyType::EllipticCurve)
+        let jwk2 = Jwk::builder(KeyType::EllipticCurve)
             .with_key_id("key2".to_string())
-            .with_algorithm(JwsAlgorithm::ES256);
+            .with_algorithm(JwsAlgorithm::ES256)
+            .build()
+            .unwrap();
 
         let jwk_set = JwkSet::new().add_key(jwk1).add_key(jwk2);
 
@@ -462,7 +570,7 @@ mod tests {
 
         let found_key = jwk_set.find_key_by_id("key1");
         assert!(found_key.is_some());
-        assert_eq!(found_key.unwrap().kty, KeyType::Rsa);
+        assert_eq!(*found_key.unwrap().kty(), KeyType::Rsa);
 
         let rs256_keys = jwk_set.find_keys_by_algorithm(&JwsAlgorithm::RS256);
         assert_eq!(rs256_keys.len(), 1);
@@ -470,93 +578,125 @@ mod tests {
 
     #[test]
     fn test_jwk_serialization() {
-        let jwk = Jwk::new(KeyType::Rsa)
+        let jwk = Jwk::builder(KeyType::Rsa)
             .with_key_id("test-key".to_string())
             .with_algorithm(JwsAlgorithm::RS256)
             .with_public_key_use(PublicKeyUse::Signature)
             .with_key_param("n", "test-modulus")
-            .with_key_param("e", "AQAB");
+            .with_key_param("e", "AQAB")
+            .build()
+            .unwrap();
 
         let json = serde_json::to_string(&jwk).unwrap();
         let deserialized: Jwk = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(jwk.kty, deserialized.kty);
-        assert_eq!(jwk.kid, deserialized.kid);
-        assert_eq!(jwk.alg, deserialized.alg);
-        assert_eq!(jwk.public_key_use, deserialized.public_key_use);
+        assert_eq!(*jwk.kty(), *deserialized.kty());
+        assert_eq!(jwk.kid(), deserialized.kid());
+        assert_eq!(jwk.alg(), deserialized.alg());
+        assert_eq!(jwk.public_key_use(), deserialized.public_key_use());
     }
 
     #[test]
     fn test_jwk_completeness() {
         // Complete RSA key
-        let complete_rsa = Jwk::new(KeyType::Rsa)
+        let complete_rsa = Jwk::builder(KeyType::Rsa)
             .with_key_param("n", "modulus")
-            .with_key_param("e", "AQAB");
+            .with_key_param("e", "AQAB")
+            .build()
+            .unwrap();
         assert!(complete_rsa.is_complete());
 
         // Incomplete RSA key
-        let incomplete_rsa = Jwk::new(KeyType::Rsa).with_key_param("n", "modulus");
+        let incomplete_rsa = Jwk::builder(KeyType::Rsa)
+            .with_key_param("n", "modulus")
+            .build()
+            .unwrap();
         assert!(!incomplete_rsa.is_complete());
 
         // Complete EC key
-        let complete_ec = Jwk::new(KeyType::EllipticCurve)
+        let complete_ec = Jwk::builder(KeyType::EllipticCurve)
             .with_key_param("crv", "P-256")
             .with_key_param("x", "x-coord")
-            .with_key_param("y", "y-coord");
+            .with_key_param("y", "y-coord")
+            .build()
+            .unwrap();
         assert!(complete_ec.is_complete());
 
         // Complete symmetric key
-        let complete_oct = Jwk::new(KeyType::OctetSequence).with_key_param("k", "key-value");
+        let complete_oct = Jwk::builder(KeyType::OctetSequence)
+            .with_key_param("k", "key-value")
+            .build()
+            .unwrap();
         assert!(complete_oct.is_complete());
     }
 
     #[test]
     fn test_jwk_private_key_detection() {
         // RSA private key
-        let rsa_private = Jwk::new(KeyType::Rsa)
+        let rsa_private = Jwk::builder(KeyType::Rsa)
             .with_key_param("n", "modulus")
             .with_key_param("e", "AQAB")
-            .with_key_param("d", "private-exponent");
+            .with_key_param("d", "private-exponent")
+            .build()
+            .unwrap();
         assert!(rsa_private.is_private());
 
         // RSA public key
-        let rsa_public = Jwk::new(KeyType::Rsa)
+        let rsa_public = Jwk::builder(KeyType::Rsa)
             .with_key_param("n", "modulus")
-            .with_key_param("e", "AQAB");
+            .with_key_param("e", "AQAB")
+            .build()
+            .unwrap();
         assert!(!rsa_public.is_private());
 
         // EC private key
-        let ec_private = Jwk::new(KeyType::EllipticCurve)
+        let ec_private = Jwk::builder(KeyType::EllipticCurve)
             .with_key_param("crv", "P-256")
             .with_key_param("x", "x-coord")
             .with_key_param("y", "y-coord")
-            .with_key_param("d", "private-key");
+            .with_key_param("d", "private-key")
+            .build()
+            .unwrap();
         assert!(ec_private.is_private());
 
         // Symmetric key (always private)
-        let symmetric = Jwk::new(KeyType::OctetSequence).with_key_param("k", "key-value");
+        let symmetric = Jwk::builder(KeyType::OctetSequence)
+            .with_key_param("k", "key-value")
+            .build()
+            .unwrap();
         assert!(symmetric.is_private());
     }
 
     #[test]
     fn test_jwk_key_size() {
         // EC key with known curve
-        let ec_p256 = Jwk::new(KeyType::EllipticCurve).with_key_param("crv", "P-256");
+        let ec_p256 = Jwk::builder(KeyType::EllipticCurve)
+            .with_key_param("crv", "P-256")
+            .build()
+            .unwrap();
         assert_eq!(ec_p256.key_size_bits(), Some(256));
 
-        let ec_p384 = Jwk::new(KeyType::EllipticCurve).with_key_param("crv", "P-384");
+        let ec_p384 = Jwk::builder(KeyType::EllipticCurve)
+            .with_key_param("crv", "P-384")
+            .build()
+            .unwrap();
         assert_eq!(ec_p384.key_size_bits(), Some(384));
 
         // EC key with unknown curve
-        let ec_unknown = Jwk::new(KeyType::EllipticCurve).with_key_param("crv", "unknown-curve");
+        let ec_unknown = Jwk::builder(KeyType::EllipticCurve)
+            .with_key_param("crv", "unknown-curve")
+            .build()
+            .unwrap();
         assert_eq!(ec_unknown.key_size_bits(), None);
     }
 
     #[test]
     fn test_jwk_thumbprint() {
-        let jwk = Jwk::new(KeyType::Rsa)
+        let jwk = Jwk::builder(KeyType::Rsa)
             .with_key_param("n", "modulus")
-            .with_key_param("e", "AQAB");
+            .with_key_param("e", "AQAB")
+            .build()
+            .unwrap();
 
         let thumbprint = jwk.thumbprint();
         assert!(thumbprint.is_ok());

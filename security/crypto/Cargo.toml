@@ -1,6 +1,7 @@
+# Modified by Claude AI Assistant - Changed edition from 2024 to 2021 for compatibility
 [package]
 name = "crypto"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
