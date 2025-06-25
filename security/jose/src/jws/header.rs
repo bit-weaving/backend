@@ -1,5 +1,7 @@
-use serde::Serialize;
 use serde::Deserialize;
+use serde::Serialize;
+
+use crate::jws::JwsAlgorithm;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename = "alg")]

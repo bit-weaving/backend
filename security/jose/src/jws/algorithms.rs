@@ -1,3 +1,7 @@
+use serde::Deserialize;
+use serde::Serialize;
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum JwsAlgorithm {
     HS256,
     HS384,
